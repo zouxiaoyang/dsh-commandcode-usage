@@ -1,0 +1,12 @@
+# dsh-commandcode-usage 注册示例
+# 加到你的 profile 补丁：~/.dsh/profiles/web/cordis.patch.yml 的 insert 列表
+
+- id: dsh-commandcode-usage
+  name: 'dsh-commandcode-usage'
+  config:
+    # API key（可选，默认自动解析：环境变量 / ~/.dsh/.credentials.yaml / launchctl）
+    # apiKey: 'your-commandcode-api-key'
+    # API 基础地址（可选，默认官方）
+    # apiBase: 'https://api.commandcode.ai'
+    # 环境变量名（可选，默认 COMMANDCODE_API_KEY）
+    # apiKeyEnv: 'COMMANDCODE_API_KEY'

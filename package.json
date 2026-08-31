@@ -11,6 +11,7 @@
   "files": [
     "index.js",
     "client.js",
+    "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
@@ -27,6 +28,9 @@
     "node": ">=18"
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "inject": [

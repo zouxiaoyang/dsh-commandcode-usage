@@ -1,0 +1,5 @@
+# dsh-commandcode-usage bundle patch
+# 声明 dsh.bundle.patch 指向本文件后，即可通过 dsh plugin add 安装。
+- insert:
+    - id: dsh-commandcode-usage
+      name: 'dsh-commandcode-usage'

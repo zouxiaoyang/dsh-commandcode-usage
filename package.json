@@ -1,6 +1,6 @@
 {
   "name": "dsh-commandcode-usage",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CommandCode 用量与余额面板 — 在 codex-ui 侧边栏底部显示 CommandCode API 用量、信用额度、5小时/每周窗口。 · CommandCode usage & balance panel for DeepSeek Harness: shows API usage, credit balance, 5-hour/weekly windows from the sidebar footer.",
   "main": "./index.js",
   "exports": {

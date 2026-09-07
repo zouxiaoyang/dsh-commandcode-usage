@@ -315,9 +315,9 @@ window.__ModuleLoader__.load({
         if (credits.monthlyCredits !== undefined) {
           var secCred = el("div", "up-section");
           secCred.appendChild(el("div", "up-section-title", "月额度"));
-          var usedMonthly = win.weekly ? win.weekly.used : (usage.totalCredits || 0);
+          var usedMonthly = (usage.totalMonthlyCredits !== undefined ? usage.totalMonthlyCredits : 0);
           var capMonthly = usedMonthly + credits.monthlyCredits;
-          secCred.appendChild(progressRow("剩余额度", "💳", credits.monthlyCredits, capMonthly, fmtDeadline(sub.currentPeriodEnd)));
+          secCred.appendChild(progressRow("当月已用", "💳", usedMonthly, capMonthly, fmtDeadline(sub.currentPeriodEnd)));
           // 明细
           var det = el("div", "up-progress-bottom");
           det.style.cssText = "justify-content:flex-start;gap:14px;margin-top:6px;padding-top:7px;border-top:1px dashed var(--up-border);min-height:0";
@@ -330,7 +330,7 @@ window.__ModuleLoader__.load({
             it.appendChild(vv);
             return it;
           };
-          if (usage.totalMonthlyCredits !== undefined) det.appendChild(detItem("当月已用", fmtMoney(usage.totalMonthlyCredits)));
+          det.appendChild(detItem("剩余额度", fmtMoney(credits.monthlyCredits)));
           det.appendChild(detItem("已购买", fmtMoney(credits.purchasedCredits)));
           if (credits.freeCredits !== undefined) det.appendChild(detItem("免费", fmtMoney(credits.freeCredits)));
           secCred.appendChild(det);

@@ -8,7 +8,7 @@
  * 数据获取：/dsh-usage/report RPC（同源 HTTP POST，client-request 协议）
  */
 window.__ModuleLoader__.load({
-  id: "@deepseek-ai/usage-panel",
+  id: "dsh-commandcode-usage",
   factory: function (require) {
     var module = { exports: {} };
     var exports = module.exports;

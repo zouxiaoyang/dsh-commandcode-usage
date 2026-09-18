@@ -40,8 +40,12 @@
       ]
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zouxiaoyang/dsh-commandcode-usage.git"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.5"
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.5 || ^0.1.5-rc.1"
   }
 }

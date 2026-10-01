@@ -1,5 +1,12 @@
 # dsh-commandcode-usage bundle patch
-# 声明 dsh.bundle.patch 指向本文件后，即可通过 dsh plugin add 安装。
+# 声明 dsh.bundle.patch 指向本文件后，即可通过 dsh plugin add / 插件市场安装。
+#
+# 注意：这里的 name 必须是本包【package.json 里的真实包名】。
+# 2026-09-01 曾把包名改成 @deepseek-ai/usage-panel（官方 scope，第三方无法发布），
+# 但漏改了这一行，导致插件行永远 "failed to import"、插件页点「启用」必报「启用失败」。
+# 2026-10-01 改回 dsh-commandcode-usage 并在此说明，避免再犯。
+#
+# 改动本文件后需要重载插件树（插件页「刷新」或重启客户端）才生效。
 - insert:
     - id: dsh-commandcode-usage
       name: 'dsh-commandcode-usage'

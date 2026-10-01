@@ -1,17 +1,24 @@
 /**
- * usage-panel 客户端半：在 codex-ui 侧边栏底部注入"⚡ 用量"按钮，
- * 点击弹出 CommandCode 用量面板（精致卡片 UI）。
+ * dsh-commandcode-usage 客户端半：注册进官方侧栏底部槽位 sidebar.footer.action
+ * （设置按钮旁）的「⚡ 用量」按钮，点击弹出 CommandCode 用量面板（精致卡片 UI）。
  *
- * 主题自适应：复用 codex-ui 的 body[data-ds-dark-theme] 机制 —— 面板自带
- * 主题变量，浅色/深色自动切换。
+ * 入口实现：ctx.slots.inject("sidebar.footer.action", …) + ctx.slots.register(…, React 组件)，
+ * 与 compact-button / trip-workbench 同一套写法；槽位传入 wide 标志（收起时只留图标）。
+ * 旧 codex-ui 壳没有该槽位，代码里保留了 .dcu-footer-actions 的 DOM 兜底。
+ *
+ * 主题自适应：跟随 DSH 主题变量（--dsw-alias-*），面板自带变量、浅深色自动切换。
  *
  * 数据获取：/dsh-usage/report RPC（同源 HTTP POST，client-request 协议）
  */
 window.__ModuleLoader__.load({
-  id: "@deepseek-ai/usage-panel",
+  id: "dsh-commandcode-usage",
   factory: function (require) {
     var module = { exports: {} };
     var exports = module.exports;
+    // 官方客户端（dsh-web-app / 桌面壳）的槽位组件是 React 组件；这两个模块
+    // 由客户端 bundle loader 提供（与 compact-button / trip-workbench 同一套写法）。
+    var react = require("react");
+    var jsxRuntime = require("react/jsx-runtime");
 
     var POLL_MS = 5 * 60 * 1000;
     var PANEL_CLS = "dsh-usage-panel";
@@ -135,6 +142,29 @@ window.__ModuleLoader__.load({
       return String(Math.round(v));
     }
     function pct(used, cap) { return cap > 0 ? Math.min(100, Math.round(used / cap * 100)) : 0; }
+    // ================= 套餐月额度表（官网同款口径） =================
+    // 官网「% of monthly limit used」的分母是【套餐固定月额度】，不是「已用+剩余」。
+    // 取值来源：官网自己的常量表 commandcode.ai/assets/constants-*.js（PLAN → total credits）
+    //   individual-goat = 70（2026-10-01 用 API 实测核对：70 − 剩余 67.94 = 2.06 = 本月实际扣减）。
+    // 月额度按月重置、不结转（用户 2026-10-01 确认）。套餐调整时同步这张表即可。
+    var PLAN_MONTHLY_LIMIT = {
+      "individual-go": 10,
+      "individual-go-v1": 10,
+      "individual-goat": 70,
+      "individual-pro": 30,
+      "individual-pro-v1": 80,
+      "individual-provider": 15,
+      "individual-max": 150,
+      "individual-ultra": 300,
+      "teams-pro": 40
+    };
+    function monthlyLimitFor(planId) {
+      if (!planId) return 0;
+      if (PLAN_MONTHLY_LIMIT[planId] !== undefined) return PLAN_MONTHLY_LIMIT[planId];
+      var m = /^(.+)-v\d+$/.exec(planId);
+      if (m && PLAN_MONTHLY_LIMIT[m[1]] !== undefined) return PLAN_MONTHLY_LIMIT[m[1]];
+      return 0;
+    }
     function pad2(n) { return (n < 10 ? "0" : "") + n; }
     // 周期截止 → {text:"M/D HH:mm", days} 或 ""
     function fmtDeadline(t) {
@@ -299,7 +329,11 @@ window.__ModuleLoader__.load({
           var stats = el("div", "up-stats");
           stats.appendChild(statRow(fmtCompact(usage.totalCount), "请求"));
           stats.appendChild(statRow(usage.successRate !== undefined ? usage.successRate + "%" : "—", "成功率"));
-          stats.appendChild(statRow(fmtMoney(usage.totalCost), "总花费"));
+          // 标签说清口径：这个数来自 /alpha/usage/summary 的账单周期聚合（periodBasis: billing-period），
+          // 起点早于额度重置时刻，所以会比下面的「本期已用」略大（2026-10-01 实测：含约 4 小时期初用量）。
+          var costStat = statRow(fmtMoney(usage.totalCost), "本计费周期花费");
+          costStat.title = "账单周期聚合口径（含周期开始前的少量用量），因此通常略大于「本期已用」；「本期已用」= 套餐额度 − 剩余额度";
+          stats.appendChild(costStat);
           body.appendChild(stats);
         }
 
@@ -314,10 +348,22 @@ window.__ModuleLoader__.load({
         // 信用 / 月额度
         if (credits.monthlyCredits !== undefined) {
           var secCred = el("div", "up-section");
-          secCred.appendChild(el("div", "up-section-title", "月额度"));
-          var usedMonthly = (usage.totalMonthlyCredits !== undefined ? usage.totalMonthlyCredits : 0);
-          var capMonthly = usedMonthly + credits.monthlyCredits;
-          secCred.appendChild(progressRow("当月已用", "💳", usedMonthly, capMonthly, fmtDeadline(sub.currentPeriodEnd)));
+          var secCredTitle = el("div", "up-section-title", "月额度（计费周期）");
+          secCredTitle.title = "只算计费周期：分子 = 套餐额度 − 剩余额度（周期内实际扣减），分母 = 套餐额度；到期自动重置、不结转";
+          secCred.appendChild(secCredTitle);
+          // 口径（用户 2026-10-01 确认）：只算计费周期、到期自动重新开始、不结转，分母恒为套餐额度。
+          // 因此分子 = 额度 − 剩余余额；API 的 totalMonthlyCredits 是按账单周期聚合的，
+          // 实测含 4 小时周期外用量（3.68 vs 真实 2.06），不能拿来当分子。
+          var planLimit = monthlyLimitFor(sub.planId);
+          var usedMonthly, capMonthly;
+          if (planLimit > 0) {
+            capMonthly = planLimit;
+            usedMonthly = Math.max(0, planLimit - (credits.monthlyCredits || 0));
+          } else {
+            usedMonthly = (usage.totalMonthlyCredits !== undefined ? usage.totalMonthlyCredits : 0);
+            capMonthly = usedMonthly + credits.monthlyCredits;
+          }
+          secCred.appendChild(progressRow("本期已用", "💳", usedMonthly, capMonthly, fmtDeadline(sub.currentPeriodEnd)));
           // 明细
           var det = el("div", "up-progress-bottom");
           det.style.cssText = "justify-content:flex-start;gap:14px;margin-top:6px;padding-top:7px;border-top:1px dashed var(--up-border);min-height:0";
@@ -402,6 +448,7 @@ window.__ModuleLoader__.load({
         }
       };
       wrap.__dshDispose = api.dispose;
+      wrap.__dshApi = api; // 供槽位按钮兜底查找（重新挂载后仍能 toggle）
       return api;
     }
 
@@ -418,6 +465,50 @@ window.__ModuleLoader__.load({
       btn.appendChild(icon); btn.appendChild(label);
       btn.onclick = function (e) { e.stopPropagation(); panel.toggle(); };
       return btn;
+    }
+
+    // ---------- 官方客户端入口：sidebar.footer.action 槽位 ----------
+    // 官方客户端的侧栏底部（设置按钮旁）是一个 list 槽位 sidebar.footer.action，
+    // 槽位会把 wide 标志传进来：展开时显示「⚡ 用量」文字，收起时只留图标。
+    function UsageFooterAction(props) {
+      var wide = !props || props.wide !== false;
+      return jsxRuntime.jsxs("button", {
+        type: "button",
+        className: BTN_CLS + " up-btn-slot",
+        title: "CommandCode 用量与余额",
+        "aria-label": "CommandCode 用量",
+        onClick: function (e) {
+          e.stopPropagation();
+          var inst = _instance;
+          if (!inst) {
+            var w = document.querySelector("." + PANEL_CLS);
+            if (w && w.__dshApi) inst = w.__dshApi;
+          }
+          if (inst && typeof inst.toggle === "function") inst.toggle();
+        },
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: wide ? "flex-start" : "center",
+          gap: 8,
+          minWidth: 0,
+          height: 32,
+          width: wide ? "100%" : 32,
+          padding: wide ? "0 10px" : 0,
+          background: "transparent",
+          border: "1px solid transparent",
+          borderRadius: 8,
+          color: "var(--dsw-alias-label-secondary)",
+          fontSize: 13,
+          lineHeight: "20px",
+          cursor: "pointer",
+          fontFamily: "inherit"
+        },
+        children: [
+          jsxRuntime.jsx("span", { className: "up-btn-icon", children: "⚡" }),
+          wide ? jsxRuntime.jsx("span", { children: "用量" }) : null
+        ]
+      });
     }
 
     // ---------- apply ----------
@@ -443,6 +534,22 @@ window.__ModuleLoader__.load({
       if (panel && typeof panel.setButton === 'function') panel.setButton(btn);
       document.body.appendChild(panel.wrap);
       _instance = panel;
+
+      // 官方客户端入口：注册进 sidebar.footer.action 槽位（侧栏底部、设置按钮旁）。
+      // 旧 codex-ui 壳没有这个槽位，所以下面仍保留 .dcu-footer-actions 的 DOM 兜底。
+      if (ctx && ctx.slots && typeof ctx.slots.inject === "function" && typeof ctx.slots.register === "function") {
+        try {
+          ctx.slots.inject("sidebar.footer.action", function () {
+            return ctx.slots.register({
+              name: "sidebar.footer.action",
+              id: "usage-panel",
+              order: 20
+            }, UsageFooterAction);
+          });
+        } catch (e) {
+          console.error("[dsh-commandcode-usage] 槽位注册失败:", e instanceof Error ? e.message : String(e));
+        }
+      }
 
       function tryAttach() {
         var foot = document.querySelector(".dcu-footer-actions");
